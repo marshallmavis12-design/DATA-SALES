@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>realme SA Productivity</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--y:#FFC900;--ink:#111;--mut:#6b6b6b;--bg:#f6f6f4;--card:#fff;--line:#e8e8e4;--or:#FF7A00;--red:#d93025;--grn:#1e8e3e}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 "Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",sans-serif}
+header{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.top{display:flex;align-items:center;gap:14px;padding:10px 22px}
+.logo{font-weight:800;font-size:22px;letter-spacing:-.5px}.logo b{background:var(--y);padding:0 7px;border-radius:6px;margin-left:2px}
+nav{display:flex;gap:4px;padding:0 18px 8px;overflow-x:auto}
+nav button{border:0;background:none;padding:8px 14px;border-radius:999px;font:inherit;font-weight:600;color:var(--mut);cursor:pointer;white-space:nowrap}
+nav button.on{background:var(--ink);color:var(--y)}
+main{max-width:1280px;margin:0 auto;padding:18px 22px 60px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:16px}
+.bar label{display:flex;flex-direction:column;font-size:11px;color:var(--mut);font-weight:600;gap:3px}
+select,input{font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;min-width:90px}
+input[type=number]{width:84px;min-width:0}
+.btn{background:var(--y);border:0;border-radius:10px;padding:9px 16px;font:inherit;font-weight:700;cursor:pointer;color:var(--ink)}
+.btn.dk{background:var(--ink);color:var(--y)}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin-bottom:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px}
+.card h3{margin:0 0 10px;font-size:15px}
+.k{font-size:11px;color:var(--mut);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.v{font-size:28px;font-weight:800;margin-top:2px}.v small{font-size:13px;color:var(--mut);font-weight:600}
+.two{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));margin-bottom:16px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;padding:8px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff}
+td{padding:7px 8px;border-bottom:1px solid #f0f0ec}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.sc{max-height:460px;overflow:auto}
+tr.or td{background:#fff1e0}tr.or td:first-child{box-shadow:inset 4px 0 var(--or)}
+.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:700}
+.t-or{background:var(--or);color:#fff}.t-rd{background:#fde7e5;color:var(--red)}.t-gy{background:#eee;color:var(--mut)}.t-mc{background:#e8eefc;color:#2c4fbf}.t-tr{background:#fff3c4;color:#8a6500}
+.up{color:var(--grn);font-weight:700}.dn{color:var(--red);font-weight:700}
+.hint{color:var(--mut);font-size:12px}
+canvas{max-height:300px}
+td input{width:90px}
+#login{position:fixed;inset:0;background:#fff;display:flex;align-items:center;justify-content:center;z-index:20;flex-direction:column;gap:12px;text-align:center}
+#login h1{margin:0;font-size:26px}#login .err{color:var(--red);min-height:18px}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--y);padding:10px 18px;border-radius:99px;font-weight:600;opacity:0;transition:.25s;pointer-events:none;z-index:30}
+#toast.on{opacity:1}
+</style>
+</head>
+<body>
+<div id="login">
+  <h1><span class="logo">real<b>me</b></span></h1>
+  <div class="hint">SA Productivity Dashboard · masukkan password</div>
+  <input id="pw" type="password" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()">
+  <button class="btn dk" onclick="doLogin()">Masuk</button>
+  <div class="err" id="lerr"></div>
+</div>
+<header>
+  <div class="top"><span class="logo">real<b>me</b></span><span class="hint">SA Productivity</span></div>
+  <nav id="nav"></nav>
+</header>
+<main id="app"></main>
+<div id="toast"></div>
+<script>
+const API_URL='https://script.google.com/macros/s/AKfycbwVtv8wyaGF20idbgG5iIsUtPJHRXlC5Ot_FhsQeTDhGAeb_-_GgiBVDmiy1oI5nIsB/exec'; // URL deployment Apps Script (berakhiran /exec)
+const TABS={dash:'Dashboard',mom:'MoM & Perbandingan',kpi:'KPI ARM',tenure:'Masa Kerja',turn:'Turnover',rec:'Rekrutmen',hl:'Highlight SO',up:'Upload'};
+const MN=['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
+const MEN=['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
+const BL=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+let PW=sessionStorage.getItem('pw')||'';
+let DB={data:{},kpi:{},rec:{},resign:{}};
+let S={tab:'dash',ym:'',from:1,to:31,arm:'',ch:'',q:'',n:4,yr:''};
+let PEND=null;
+const $=s=>document.querySelector(s);
+const fmt=n=>Math.round(n).toLocaleString('id-ID');
+const pc=n=>isFinite(n)?(n*100).toFixed(1)+'%':'-';
+const sum=a=>a.reduce((x,y)=>x+y,0);
+const mons=()=>Object.keys(DB.data).sort();
+const mlabel=ym=>BL[+ym.slice(5)-1]+' '+ym.slice(2,4);
+const toast=t=>{const e=$('#toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),2400)};
+const CH={};
+function chart(id,cfg){const c=document.getElementById(id);if(!c)return;if(CH[id])CH[id].destroy();CH[id]=new Chart(c,cfg)}
+
+async function api(action,p={}){
+  const r=await fetch(API_URL,{method:'POST',body:JSON.stringify({action,pw:PW,...p})});
+  return r.json();
+}
+async function doLogin(){
+  PW=$('#pw').value||PW;$('#lerr').textContent='Memuat...';
+  try{
+    const r=await api('all');
+    if(!r.ok){$('#lerr').textContent=r.error==='auth'?'Password salah':'Error: '+r.error;return}
+    sessionStorage.setItem('pw',PW);
+    DB={data:{},kpi:{},rec:{},resign:{}};
+    for(const k in r.items){const [t,ym]=k.split('|');if(DB[t])DB[t][ym]=JSON.parse(r.items[k])}
+    const m=mons();S.ym=m[m.length-1]||'';S.yr=S.ym.slice(0,4)||String(new Date().getFullYear());
+    S.to=cutoff(S.ym)||31;
+    $('#login').style.display='none';draw();
+  }catch(e){$('#lerr').textContent='Tidak bisa terhubung ke server (cek API_URL)'}
+}
+async function save(t,ym,obj){
+  DB[t][ym]=obj;
+  const r=await api('put',{key:t+'|'+ym,value:JSON.stringify(obj)});
+  if(!r.ok)toast('Gagal menyimpan: '+r.error);else toast('Tersimpan');
+}
+
+/* ---------- data helpers ---------- */
+function cutoff(ym){const d=DB.data[ym];if(!d)return 0;let c=0;d.rows.forEach(r=>r.x.forEach((v,i)=>{if(v>0&&i+1>c)c=i+1}));return c}
+const so=r=>sum(r.x.slice(S.from-1,S.to));
+function R(ym,useArm=true){const d=DB.data[ym];if(!d)return[];return d.rows.filter(r=>(!useArm||!S.arm||r.a===S.arm)&&(!S.ch||r.ch===S.ch))}
+function groupArm(rs){const g={};rs.forEach(r=>{(g[r.a]=g[r.a]||{a:r.a,ch:r.ch,rs:[]}).rs.push(r)});return Object.values(g)}
+const armsOf=ym=>[...new Set((DB.data[ym]?.rows||[]).map(r=>r.a))].sort();
+const tenure=m=>m<=3?'0-3 bln':m<=6?'4-6 bln':m<=12?'7-12 bln':'>12 bln';
+const TB=['0-3 bln','4-6 bln','7-12 bln','>12 bln'];
+const chTag=c=>`<span class="tag ${c==='MC'?'t-mc':'t-tr'}">${c==='MC'?'MC':'Tradi'}</span>`;
+const gr=(a,b)=>b?`<span class="${a>=b?'up':'dn'}">${a>=b?'▲':'▼'} ${Math.abs((a-b)/b*100).toFixed(1)}%</span>`:'-';
+
+/* ---------- filter bar ---------- */
+function bar(opts={}){
+  const m=mons();
+  let h='<div class="bar">';
+  h+=`<label>Bulan<select onchange="S.ym=this.value;S.to=cutoff(S.ym)||31;S.from=1;S.yr=S.ym.slice(0,4);draw()">${m.map(x=>`<option value="${x}" ${x===S.ym?'selected':''}>${mlabel(x)}</option>`).join('')}</select></label>`;
+  if(!opts.nodate)h+=`<label>Tanggal dari<input type="number" min="1" max="31" value="${S.from}" onchange="S.from=+this.value;draw()"></label><label>sampai<input type="number" min="1" max="31" value="${S.to}" onchange="S.to=+this.value;draw()"></label>`;
+  if(!opts.noarm)h+=`<label>ARM<select onchange="S.arm=this.value;draw()"><option value="">Semua ARM</option>${armsOf(S.ym).map(a=>`<option ${a===S.arm?'selected':''}>${a}</option>`).join('')}</select></label>`;
+  if(!opts.noch)h+=`<label>Channel<select onchange="S.ch=this.value;draw()"><option value="">Tradi + MC</option><option value="TRADI" ${S.ch==='TRADI'?'selected':''}>Tradi</option><option value="MC" ${S.ch==='MC'?'selected':''}>Modern Channel</option></select></label>`;
+  return h+'</div>';
+}
+
+/* ---------- views ---------- */
+const V={};
+V.dash=()=>{
+  const rs=R(S.ym);if(!rs.length)return['<div class="card">Belum ada data. Buka tab Upload.</div>'];
+  const tot=sum(rs.map(so)),el=rs.filter(r=>r.m>=1),hi=el.filter(r=>so(r)>=21&&so(r)<=25),lo=el.filter(r=>so(r)<21);
+  const kp=DB.kpi[S.ym]||{};
+  const gs=groupArm(rs).map(g=>{const s=sum(g.rs.map(so)),k=kp[g.a]||{};return{...g,s,n:g.rs.length,t:k.so||0}}).sort((a,b)=>b.s-a.s);
+  const perSA=r=>{const k=kp[r.a];if(!k||!k.so)return 0;return k.so/(DB.data[S.ym].rows.filter(z=>z.a===r.a).length||1)};
+  const list=rs.filter(r=>!S.q||(r.n+r.a).toLowerCase().includes(S.q.toLowerCase())).sort((a,b)=>so(b)-so(a));
+  const html=bar()+`<div class="grid">
+  <div class="card"><div class="k">Total SO</div><div class="v">${fmt(tot)}</div></div>
+  <div class="card"><div class="k">SA aktif</div><div class="v">${fmt(rs.length)}</div></div>
+  <div class="card"><div class="k">Produktivitas (SO/SA)</div><div class="v">${(tot/rs.length).toFixed(2)}</div></div>
+  <div class="card"><div class="k">SA 21–25 unit</div><div class="v" style="color:var(--or)">${hi.length}</div></div>
+  <div class="card"><div class="k">SA &lt; 21 unit <small>(≥1 bln kerja)</small></div><div class="v">${lo.length}</div></div></div>
+  <div class="two"><div class="card"><h3>SO harian</h3><canvas id="c1"></canvas></div>
+  <div class="card"><h3>Per ARM</h3><div class="sc"><table><tr><th>ARM</th><th>CH</th><th class="n">SA</th><th class="n">SO</th><th class="n">Prod</th><th class="n">Target</th><th class="n">Ach</th></tr>
+  ${gs.map(g=>`<tr><td>${g.a}</td><td>${chTag(g.ch)}</td><td class="n">${g.n}</td><td class="n">${fmt(g.s)}</td><td class="n">${(g.s/g.n).toFixed(1)}</td><td class="n">${g.t?fmt(g.t):'-'}</td><td class="n">${g.t?pc(g.s/g.t):'-'}</td></tr>`).join('')}</table></div></div></div>
+  <div class="card"><h3>Detail SA <input placeholder="Cari nama / ARM" value="${S.q}" oninput="S.q=this.value;draw(1)" style="margin-left:10px;font-weight:400"></h3><div class="sc"><table><tr><th>Nama SA</th><th>ARM</th><th>CH</th><th>Masa kerja</th><th class="n">SO</th><th class="n">Target SO/SA</th><th class="n">Ach</th><th>Status</th></tr>
+  ${list.map(r=>{const s=so(r),t=perSA(r),h=r.m>=1&&s>=21&&s<=25;return`<tr class="${h?'or':''}"><td>${r.n}</td><td>${r.a}</td><td>${chTag(r.ch)}</td><td>${r.m} bln</td><td class="n">${s}</td><td class="n">${t?t.toFixed(1):'-'}</td><td class="n">${t?pc(s/t):'-'}</td><td>${r.m<1?'<span class="tag t-gy">Baru</span>':h?'<span class="tag t-or">21–25</span>':s<21?'<span class="tag t-rd">&lt;21</span>':''}</td></tr>`}).join('')}</table></div></div>`;
+  return[html,()=>{const dd=[];for(let d=S.from;d<=S.to;d++)dd.push(d);
+    chart('c1',{type:'bar',data:{labels:dd,datasets:[{data:dd.map(d=>sum(rs.map(r=>r.x[d-1]||0))),backgroundColor:'#FFC900',borderRadius:4}]},options:{plugins:{legend:{display:false}}}})}];
+};
+V.mom=()=>{
+  const m=mons().slice(-S.n);if(!m.length)return['<div class="card">Belum ada data.</div>'];
+  const tot=(ym,ch)=>sum(R(ym,true).filter(r=>!ch||r.ch===ch).map(so));
+  const arms=[...new Set(m.flatMap(armsOf))].filter(a=>!S.arm||a===S.arm);
+  const val=(ym,a)=>sum(R(ym,false).filter(r=>r.a===a&&(!S.ch||r.ch===S.ch)).map(so));
+  const html=bar({nodate:0})+`<div class="bar"><label>Jumlah bulan<select onchange="S.n=+this.value;draw()">${[2,3,4,6,12].map(n=>`<option ${n===S.n?'selected':''}>${n}</option>`).join('')}</select></label><span class="hint">Rentang tanggal sama dipakai untuk semua bulan agar perbandingan adil.</span></div>
+  <div class="two"><div class="card"><h3>Total SO per bulan — Tradi vs MC</h3><canvas id="c2"></canvas></div>
+  <div class="card"><h3>Growth MoM</h3><table><tr><th>Bulan</th><th class="n">Total</th><th class="n">MoM</th><th class="n">Tradi</th><th class="n">MoM</th><th class="n">MC</th><th class="n">MoM</th></tr>
+  ${m.map((ym,i)=>{const p=m[i-1];const t=tot(ym),a=tot(ym,'TRADI'),b=tot(ym,'MC');return`<tr><td>${mlabel(ym)}</td><td class="n">${fmt(t)}</td><td class="n">${p?gr(t,tot(p)):'-'}</td><td class="n">${fmt(a)}</td><td class="n">${p?gr(a,tot(p,'TRADI')):'-'}</td><td class="n">${fmt(b)}</td><td class="n">${p?gr(b,tot(p,'MC')):'-'}</td></tr>`}).join('')}</table></div></div>
+  <div class="card"><h3>SO per ARM</h3><div class="sc"><table><tr><th>ARM</th>${m.map(x=>`<th class="n">${mlabel(x)}</th>`).join('')}<th class="n">MoM terakhir</th></tr>
+  ${arms.map(a=>{const v=m.map(x=>val(x,a));return`<tr><td>${a}</td>${v.map(x=>`<td class="n">${fmt(x)}</td>`).join('')}<td class="n">${v.length>1?gr(v[v.length-1],v[v.length-2]):'-'}</td></tr>`}).join('')}</table></div></div>`;
+  return[html,()=>chart('c2',{type:'line',data:{labels:m.map(mlabel),datasets:[{label:'Tradi',data:m.map(x=>tot(x,'TRADI')),borderColor:'#FFC900',backgroundColor:'#FFC900',tension:.3},{label:'MC',data:m.map(x=>tot(x,'MC')),borderColor:'#111',backgroundColor:'#111',tension:.3}]}})];
+};
+V.kpi=()=>{
+  const d=DB.data[S.ym];if(!d)return['<div class="card">Belum ada data.</div>'];
+  const kp=DB.kpi[S.ym]||{},arms=armsOf(S.ym);
+  const full=a=>d.rows.filter(r=>r.a===a),act=a=>sum(full(a).map(r=>r.t));
+  const ym=S.yr,months=Array.from({length:12},(_,i)=>`${ym}-${String(i+1).padStart(2,'0')}`);
+  const yrs=[...new Set(mons().map(x=>x.slice(0,4)))];
+  const html=bar({nodate:1,noarm:1,noch:1})+`<div class="card"><h3>Target KPI per ARM — ${mlabel(S.ym)} <button class="btn" style="margin-left:10px" onclick="copyKpi()">Salin dari bulan lalu</button> <button class="btn dk" onclick="saveKpi()">Simpan</button></h3>
+  <p class="hint">Target SO ARM otomatis dibagi rata ke semua SA di ARM tersebut (kolom "Target/SA"), dan terbaca di tab Dashboard.</p>
+  <div class="sc"><table><tr><th>ARM</th><th>CH</th><th class="n">SA</th><th class="n">Target SO</th><th class="n">Limit SA</th><th class="n">Target Prod</th><th class="n">Target/SA</th><th class="n">Aktual SO</th><th class="n">Ach</th></tr>
+  ${arms.map(a=>{const k=kp[a]||{},n=full(a).length,t=k.so||0;return`<tr><td>${a}</td><td>${chTag(full(a)[0].ch)}</td><td class="n">${n}</td><td class="n"><input type="number" data-a="${a}" data-f="so" value="${k.so||''}"></td><td class="n"><input type="number" data-a="${a}" data-f="lim" value="${k.lim||''}"></td><td class="n"><input type="number" step="0.1" data-a="${a}" data-f="prod" value="${k.prod||''}"></td><td class="n">${t?(t/n).toFixed(1):'-'}</td><td class="n">${fmt(act(a))}</td><td class="n">${t?pc(act(a)/t):'-'}</td></tr>`}).join('')}</table></div></div>
+  <div class="card" style="margin-top:14px"><h3>Rekap tahunan — Ach SO vs Target <select onchange="S.yr=this.value;draw()" style="margin-left:10px">${(yrs.length?yrs:[ym]).map(y=>`<option ${y===ym?'selected':''}>${y}</option>`).join('')}</select></h3><div class="sc"><table><tr><th>ARM</th>${months.map((x,i)=>`<th class="n">${BL[i]}</th>`).join('')}<th class="n">YTD Ach</th></tr>
+  ${[...new Set(months.flatMap(armsOf))].map(a=>{let A=0,T=0;const c=months.map(x=>{const rr=(DB.data[x]?.rows||[]).filter(r=>r.a===a),s=sum(rr.map(r=>r.t)),t=(DB.kpi[x]||{})[a]?.so||0;if(rr.length){A+=s;T+=t}return rr.length?`<td class="n">${t?pc(s/t):fmt(s)}</td>`:'<td class="n">-</td>'}).join('');return`<tr><td>${a}</td>${c}<td class="n"><b>${T?pc(A/T):'-'}</b></td></tr>`}).join('')}</table></div><p class="hint">Sel menampilkan Ach% bila target sudah diisi, jika belum menampilkan total SO.</p></div>`;
+  return[html];
+};
+window.saveKpi=()=>{const o={};document.querySelectorAll('input[data-a]').forEach(i=>{if(i.value!==''){(o[i.dataset.a]=o[i.dataset.a]||{})[i.dataset.f]=+i.value}});save('kpi',S.ym,o).then(()=>draw())};
+window.copyKpi=()=>{const m=mons(),i=m.indexOf(S.ym),p=Object.keys(DB.kpi).sort().filter(x=>x<S.ym).pop();if(!p)return toast('Belum ada target bulan lalu');save('kpi',S.ym,JSON.parse(JSON.stringify(DB.kpi[p]))).then(()=>draw())};
+V.tenure=()=>{
+  const rs=R(S.ym);if(!rs.length)return['<div class="card">Belum ada data.</div>'];
+  const b=TB.map(t=>{const g=rs.filter(r=>tenure(r.m)===t),s=sum(g.map(so));return{t,n:g.length,s,p:g.length?s/g.length:0,h:g.filter(r=>so(r)>=21).length}});
+  const html=bar()+`<div class="two"><div class="card"><h3>SO & Produktivitas per masa kerja</h3><table><tr><th>Masa kerja</th><th class="n">SA</th><th class="n">Total SO</th><th class="n">Prod (SO/SA)</th><th class="n">SA ≥21</th></tr>
+  ${b.map(x=>`<tr><td>${x.t}</td><td class="n">${x.n}</td><td class="n">${fmt(x.s)}</td><td class="n">${x.p.toFixed(2)}</td><td class="n">${x.n?pc(x.h/x.n):'-'}</td></tr>`).join('')}</table></div>
+  <div class="card"><h3>Produktivitas</h3><canvas id="c3"></canvas></div></div>`;
+  return[html,()=>chart('c3',{type:'bar',data:{labels:TB,datasets:[{label:'SO/SA',data:b.map(x=>+x.p.toFixed(2)),backgroundColor:'#FFC900',borderRadius:6},{label:'Jumlah SA',data:b.map(x=>x.n),backgroundColor:'#111',borderRadius:6}]}})];
+};
+function turn(ym){
+  const d=DB.data[ym];if(!d)return null;
+  const ins=d.rows.filter(r=>r.j&&r.j.startsWith(ym));
+  const prev=mons().filter(x=>x<ym).pop(),cur=new Set(d.rows.map(r=>r.c));
+  const out=new Map();
+  (DB.resign[ym]||[]).forEach(r=>out.set(r.c,{...r,why:'Resign '+r.d}));
+  if(prev)DB.data[prev].rows.forEach(r=>{if(!cur.has(r.c)&&!out.has(r.c))out.set(r.c,{c:r.c,n:r.n,a:r.a,m:r.m,why:'Hilang dari data'})});
+  return{ins,out:[...out.values()],n:d.rows.length};
+}
+V.turn=()=>{
+  const m=mons();if(!m.length)return['<div class="card">Belum ada data.</div>'];
+  const T=m.map(x=>({x,...turn(x)}));const cur=turn(S.ym);
+  const html=bar({nodate:1,noarm:1,noch:1})+`<div class="two"><div class="card"><h3>SA In vs Out</h3><canvas id="c4"></canvas></div>
+  <div class="card"><h3>Ringkasan</h3><table><tr><th>Bulan</th><th class="n">SA</th><th class="n">In</th><th class="n">Out</th><th class="n">Turnover</th></tr>${T.map(t=>`<tr><td>${mlabel(t.x)}</td><td class="n">${t.n}</td><td class="n up">${t.ins.length}</td><td class="n dn">${t.out.length}</td><td class="n">${pc(t.out.length/t.n)}</td></tr>`).join('')}</table></div></div>
+  <div class="two"><div class="card"><h3>SA In — ${mlabel(S.ym)}</h3><div class="sc"><table><tr><th>Nama</th><th>ARM</th><th>Join</th></tr>${cur.ins.map(r=>`<tr><td>${r.n}</td><td>${r.a}</td><td>${r.j}</td></tr>`).join('')||'<tr><td>-</td></tr>'}</table></div></div>
+  <div class="card"><h3>SA Out — ${mlabel(S.ym)}</h3><div class="sc"><table><tr><th>Nama</th><th>ARM</th><th>Keterangan</th></tr>${cur.out.map(r=>`<tr><td>${r.n}</td><td>${r.a||'-'}</td><td>${r.why}</td></tr>`).join('')||'<tr><td>-</td></tr>'}</table></div></div></div>`;
+  return[html,()=>chart('c4',{type:'bar',data:{labels:T.map(t=>mlabel(t.x)),datasets:[{label:'In',data:T.map(t=>t.ins.length),backgroundColor:'#FFC900',borderRadius:5},{label:'Out',data:T.map(t=>t.out.length),backgroundColor:'#111',borderRadius:5}]}})];
+};
+V.rec=()=>{
+  const m=[...new Set([...mons(),...Object.keys(DB.rec)])].sort();
+  const r=DB.rec[S.ym]||{},t=DB.data[S.ym]?turn(S.ym):null,ex=r.exit!=null?r.exit:(t?t.out.length:'');
+  const html=bar({nodate:1,noarm:1,noch:1})+`<div class="card"><h3>Input Recruitment — ${mlabel(S.ym||'2026-01')}</h3><div class="bar">
+  <label>Interview<input type="number" id="r1" value="${r.iv??''}"></label><label>OJT<input type="number" id="r2" value="${r.ojt??''}"></label><label>Resmi gabung<input type="number" id="r3" value="${r.jn??''}"></label><label>SA Exit<input type="number" id="r4" value="${ex}"></label>
+  <button class="btn dk" onclick="saveRec()">Simpan</button></div><p class="hint">SA Exit terisi otomatis dari data Turnover, bisa diubah manual.</p></div>
+  <div class="two" style="margin-top:14px"><div class="card"><h3>Tren bulanan</h3><canvas id="c5"></canvas></div><div class="card"><h3>Rekap</h3><table><tr><th>Bulan</th><th class="n">Interview</th><th class="n">OJT</th><th class="n">Gabung</th><th class="n">Exit</th></tr>${m.map(x=>{const a=DB.rec[x]||{};return`<tr><td>${mlabel(x)}</td><td class="n">${a.iv??'-'}</td><td class="n">${a.ojt??'-'}</td><td class="n">${a.jn??'-'}</td><td class="n">${a.exit??'-'}</td></tr>`}).join('')}</table></div></div>`;
+  return[html,()=>chart('c5',{type:'line',data:{labels:m.map(mlabel),datasets:[['Interview','iv','#FFC900'],['OJT','ojt','#FF7A00'],['Resmi gabung','jn','#1e8e3e'],['Exit','exit','#111']].map(([l,k,c])=>({label:l,data:m.map(x=>(DB.rec[x]||{})[k]??null),borderColor:c,backgroundColor:c,tension:.3,spanGaps:true}))}})];
+};
+window.saveRec=()=>{const g=i=>$('#'+i).value===''?null:+$('#'+i).value;save('rec',S.ym,{iv:g('r1'),ojt:g('r2'),jn:g('r3'),exit:g('r4')}).then(()=>draw())};
+V.hl=()=>{
+  const rs=R(S.ym);if(!rs.length)return['<div class="card">Belum ada data.</div>'];
+  const el=rs.filter(r=>r.m>=1),hi=el.filter(r=>so(r)>=21&&so(r)<=25).sort((a,b)=>so(b)-so(a)),lo=el.filter(r=>so(r)<21).sort((a,b)=>so(a)-so(b));
+  const tb=(l,o)=>`<div class="sc"><table><tr><th>Nama SA</th><th>ARM</th><th>CH</th><th class="n">Masa kerja</th><th class="n">SO</th></tr>${l.map(r=>`<tr class="${o?'or':''}"><td>${r.n}</td><td>${r.a}</td><td>${chTag(r.ch)}</td><td class="n">${r.m} bln</td><td class="n">${so(r)}</td></tr>`).join('')||'<tr><td colspan=5>-</td></tr>'}</table></div>`;
+  return[bar()+`<p class="hint">SA dengan masa kerja &lt; 1 bulan (${rs.length-el.length} SA) tidak dimasukkan.</p><div class="two"><div class="card"><h3><span class="tag t-or">21–25 unit</span> ${hi.length} SA</h3>${tb(hi,1)}</div><div class="card"><h3><span class="tag t-rd">&lt; 21 unit</span> ${lo.length} SA</h3>${tb(lo,0)}</div></div>`];
+};
+V.up=()=>[`<div class="card"><h3>Upload file SA &amp; DSA Productivity (.xlsx)</h3><p class="hint">Data per bulan tersimpan di Google Sheet. Upload ulang bulan yang sama akan menimpa data bulan itu (update harian/mingguan).</p>
+<input type="file" accept=".xlsx" onchange="parseFile(this.files[0])"><div id="pend" style="margin-top:14px"></div></div>
+<div class="card" style="margin-top:14px"><h3>Bulan tersimpan</h3>${mons().map(x=>`<span class="tag t-tr" style="margin:3px">${mlabel(x)} · ${DB.data[x].rows.length} SA · s/d tgl ${cutoff(x)}</span>`).join('')||'<span class="hint">Belum ada</span>'}</div>`];
+
+window.parseFile=async f=>{
+  if(!f)return;$('#pend').innerHTML='Membaca file...';
+  const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
+  const sh=wb.Sheets['SA REGULAR'];if(!sh){$('#pend').innerHTML='<span class="dn">Sheet "SA REGULAR" tidak ditemukan</span>';return}
+  const title=String(wb.Sheets['DASHBOARD DATA']?.B3?.v||'');
+  const mm=title.toUpperCase().match(new RegExp('('+MN.concat(MEN).join('|')+')\\s+(\\d{4})'));
+  let ym='';if(mm){let i=MN.indexOf(mm[1]);if(i<0)i=MEN.indexOf(mm[1]);ym=mm[2]+'-'+String(i+1).padStart(2,'0')}
+  const a=XLSX.utils.sheet_to_json(sh,{header:1,defval:''});
+  const h=a[1].map(x=>String(x).replace(/\s+/g,' ').trim());
+  const ix=n=>h.indexOf(n),i1=ix('ARM'),i2=h.indexOf('ARM',i1+1),d0=ix('1');
+  const iso=v=>typeof v==='number'?new Date(Math.round((v-25569)*864e5)).toISOString().slice(0,10):String(v).slice(0,10);
+  const rows=[];
+  for(let k=2;k<a.length;k++){const r=a[k];if(!r[ix('SALES ADVISOR NAME')])continue;
+    const x=Array.from({length:31},(_,i)=>+r[d0+i]||0),area=String(r[i2]||'');
+    rows.push({c:r[ix('PERSONEL CODE')],n:String(r[ix('SALES ADVISOR NAME')]).trim(),ch:/^MC/i.test(area)||/MODERN/i.test(r[ix('STORE TYPE')])?'MC':'TRADI',a:String(r[i1]).trim(),ar:area,rg:r[ix('REGIONAL')],j:iso(r[ix('JOIN DATE')]),m:parseInt(r[ix('WORK PERIODE')])||0,x,t:sum(x)})}
+  const rs=[];const as=wb.Sheets['RAW AKUN SISTEM'];
+  if(as)XLSX.utils.sheet_to_json(as,{defval:''}).forEach(r=>{const d=r['Resignation Date'];if(d)rs.push({c:r['Personnel Code'],n:r['Personnel Name'],d:iso(d)})});
+  PEND={rows,rs};
+  $('#pend').innerHTML=`${rows.length} SA terbaca dari sheet SA REGULAR.<div class="bar" style="margin-top:10px"><label>Simpan sebagai bulan<input type="month" id="upm" value="${ym}"></label><button class="btn dk" onclick="commitUp()">Simpan ke server</button></div>`;
+};
+window.commitUp=async()=>{
+  const ym=$('#upm').value;if(!ym||!PEND)return toast('Pilih bulan');
+  toast('Menyimpan...');
+  const res=PEND.rs.filter(r=>r.d.startsWith(ym)).map(r=>({...r,a:(PEND.rows.find(z=>z.c===r.c)||{}).a}));
+  await save('data',ym,{rows:PEND.rows});await save('resign',ym,res);
+  S.ym=ym;S.yr=ym.slice(0,4);S.from=1;S.to=cutoff(ym)||31;PEND=null;S.tab='dash';draw();
+};
+
+/* ---------- render ---------- */
+function draw(keep){
+  const nav=$('#nav');nav.innerHTML=Object.entries(TABS).map(([k,v])=>`<button class="${k===S.tab?'on':''}" onclick="S.tab='${k}';draw()">${v}</button>`).join('');
+  const act=document.activeElement,pos=act&&act.selectionStart,id=act&&act.placeholder;
+  const [h,post]=V[S.tab]();$('#app').innerHTML=h;if(post)post();
+  if(keep&&id){const e=document.querySelector(`input[placeholder="${id}"]`);if(e){e.focus();e.setSelectionRange(pos,pos)}}
+}
+if(PW)doLogin();
+</script>
+</body>
+</html>
