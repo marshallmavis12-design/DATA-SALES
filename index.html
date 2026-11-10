@@ -86,7 +86,7 @@ const BL=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des
 document.querySelectorAll('img.logo').forEach(i=>i.src=LOGO);
 let PW=sessionStorage.getItem('pw')||'';
 let DB={data:{},kpi:{},rec:{},resign:{},tm:{}};
-let S={sm:'no',mm:[],tab:'dash',ym:'',from:1,to:31,arm:'',ch:'',q:'',n:4,yr:''};
+let S={mdl:[],sm:'no',mm:[],tab:'dash',ym:'',from:1,to:31,arm:'',ch:'',q:'',n:4,yr:''};
 let PEND=null;
 const $=s=>document.querySelector(s);
 const fmt=n=>Math.round(n).toLocaleString('id-ID');
@@ -127,7 +127,9 @@ async function save(t,ym,obj){
 
 /* ---------- data helpers ---------- */
 function cutoff(ym){const d=DB.data[ym];if(!d)return 0;let c=0;d.rows.forEach(r=>r.x.forEach((v,i)=>{if(v>0&&i+1>c)c=i+1}));return c}
-const so=r=>sum(r.x.slice(S.from-1,S.to));
+const so=r=>S.mdl.length?sum(S.mdl.map(m=>(r.md||{})[m]||0)):sum(r.x.slice(S.from-1,S.to));
+const modelsOf=ym=>{const t={};(DB.data[ym]?.rows||[]).forEach(r=>Object.entries(r.md||{}).forEach(([k,v])=>t[k]=(t[k]||0)+v));return Object.keys(t).sort((a,b)=>t[b]-t[a])};
+window.tgMd=i=>{const m=modelsOf(S.ym)[i];S.mdl=S.mdl.includes(m)?S.mdl.filter(x=>x!==m):[...S.mdl,m];draw()};
 function R(ym,useArm=true){const d=DB.data[ym];if(!d)return[];return d.rows.filter(r=>(!useArm||!S.arm||r.a===S.arm)&&(!S.ch||r.ch===S.ch)&&smOk(r))}
 function groupArm(rs){const g={};rs.forEach(r=>{(g[r.a]=g[r.a]||{a:r.a,ch:r.ch,rs:[]}).rs.push(r)});return Object.values(g)}
 const armsOf=ym=>[...new Set((DB.data[ym]?.rows||[]).filter(smOk).map(r=>r.a))].sort();
@@ -144,7 +146,9 @@ function bar(opts={}){
   if(!opts.nodate)h+=`<label>Tanggal dari<input type="number" min="1" max="31" value="${S.from}" onchange="S.from=+this.value;draw()"></label><label>sampai<input type="number" min="1" max="31" value="${S.to}" onchange="S.to=+this.value;draw()"></label>`;
   if(!opts.noarm)h+=`<label>ARM<select onchange="S.arm=this.value;draw()"><option value="">Semua ARM</option>${armsOf(S.ym).map(a=>`<option ${a===S.arm?'selected':''}>${a}</option>`).join('')}</select></label>`;
   if(!opts.noch)h+=`<label>Channel<select onchange="S.ch=this.value;draw()"><option value="">Tradi + MC</option><option value="TRADI" ${S.ch==='TRADI'?'selected':''}>Tradi</option><option value="MC" ${S.ch==='MC'?'selected':''}>Modern Channel</option></select></label>`;
-  return h+'</div>';
+  h+='</div>';
+  if(opts.mdl){const ms=modelsOf(S.ym);h+=ms.length?`<div class="bar"><span class="k">Tipe HP</span>${ms.map((x,i)=>`<label class="chip"><input type="checkbox" ${S.mdl.includes(x)?'checked':''} onchange="tgMd(${i})">${x}</label>`).join('')}${S.mdl.length?'<button class="btn dk" onclick="S.mdl=[];draw()">Reset</button>':''}</div>${S.mdl.length?'<p class="hint">Filter tipe HP memakai total SO per tipe satu bulan penuh (rentang tanggal tidak berlaku).</p>':''}`:'<p class="hint">Data tipe HP belum ada — upload ulang file Excel bulan ini.</p>'}
+  return h;
 }
 
 /* ---------- views ---------- */
@@ -156,7 +160,7 @@ V.dash=()=>{
   const gs=groupArm(rs).map(g=>{const s=sum(g.rs.map(so)),k=kp[g.a]||{};return{...g,s,n:g.rs.length,t:k.so||0}}).sort((a,b)=>b.s-a.s);
   const perSA=r=>{const k=kp[r.a];if(!k||!k.so)return 0;return k.so/(DB.data[S.ym].rows.filter(z=>z.a===r.a).length||1)};
   const list=rs.filter(r=>!S.q||(r.n+r.a).toLowerCase().includes(S.q.toLowerCase())).sort((a,b)=>so(b)-so(a));
-  const html=bar()+`<div class="grid">
+  const html=bar({mdl:1})+`<div class="grid">
   <div class="card"><div class="k">Total SO</div><div class="v">${fmt(tot)}</div></div>
   <div class="card"><div class="k">SA aktif</div><div class="v">${fmt(rs.length)}</div></div>
   <div class="card"><div class="k">Produktivitas (SO/SA)</div><div class="v">${(tot/rs.length).toFixed(2)}</div></div>
@@ -170,11 +174,11 @@ V.dash=()=>{
   return[html,()=>{const dd=[];for(let d=S.from;d<=S.to;d++)dd.push(d);
     chart('c1',{type:'bar',data:{labels:dd,datasets:[{data:dd.map(d=>sum(rs.map(r=>r.x[d-1]||0))),backgroundColor:'#FFC900',borderRadius:4}]},options:{plugins:{legend:{display:false}}}})}];
 };
-window.saPop=c=>{const r=DB.data[S.ym].rows.find(z=>String(z.c)===String(c));if(!r)return;const dd=r.x.map((v,i)=>i+1).filter(d=>d<=cutoff(S.ym)),best=Math.max(...r.x);
+window.saPop=c=>{const r=DB.data[S.ym].rows.find(z=>String(z.c)===String(c));if(!r)return;const dd=r.x.map((v,i)=>i+1).filter(d=>d<=cutoff(S.ym)),best=Math.max(...r.x),me=Object.entries(r.md||{}).sort((a,b)=>b[1]-a[1]);
 $('#modal').innerHTML=`<div class="card"><h3>${r.n} <button class="btn dk" style="float:right" onclick="$('#modal').classList.remove('on')">Tutup</button></h3><div class="hint">${r.a} · ${r.ch==='MC'?'Modern Channel':'Tradi'} · masa kerja ${r.m} bln · ${mlabel(S.ym)}</div>
 <div class="grid" style="margin-top:12px"><div class="card"><div class="k">Total SO</div><div class="v">${r.t}</div></div><div class="card"><div class="k">Hari jualan</div><div class="v">${r.x.filter(v=>v>0).length}</div></div><div class="card"><div class="k">Terbaik / hari</div><div class="v">${best}</div></div></div>
-<canvas id="cm"></canvas><p class="hint">Rincian tipe/model HP per SA menunggu mapping kolom dari file Excel.</p></div>`;
-$('#modal').classList.add('on');chart('cm',{type:'bar',data:{labels:dd,datasets:[{label:'SO',data:dd.map(d=>r.x[d-1]),backgroundColor:'#FFC900',borderRadius:4}]},options:{plugins:{legend:{display:false}}}})};
+<canvas id="cm"></canvas>${me.length?'<h3 style="margin-top:14px">Penjualan per tipe HP</h3><canvas id="cm2"></canvas>':'<p class="hint">Data tipe HP belum ada — upload ulang file Excel bulan ini.</p>'}</div>`;
+$('#modal').classList.add('on');if(me.length)chart('cm2',{type:'bar',data:{labels:me.map(x=>x[0]),datasets:[{data:me.map(x=>x[1]),backgroundColor:'#00E5FF',borderRadius:4}]},options:{indexAxis:'y',plugins:{legend:{display:false}}}});chart('cm',{type:'bar',data:{labels:dd,datasets:[{label:'SO',data:dd.map(d=>r.x[d-1]),backgroundColor:'#FFC900',borderRadius:4}]},options:{plugins:{legend:{display:false}}}})};
 V.mom=()=>{
   const m=(S.mm.length?S.mm.filter(x=>mons().includes(x)):mons().slice(-S.n)).sort();if(!m.length)return['<div class="card">Belum ada data.</div>'];
   const tot=(ym,ch)=>sum(R(ym,true).filter(r=>!ch||r.ch===ch).map(so));
@@ -204,7 +208,18 @@ V.kpi=()=>{
   <p class="hint">ACV = total SO SA Regular per ARM (tanpa Store Manager) · Prod. ACV = ACV ÷ Limit SA · Total KPI = 60% × %ACV + 40% × %Produktivitas · Est KPI = Total KPI ÷ Time gone (${cutoff(S.ym)}/${dim} hari). Limit SA, target SO, dan target produktivitas diisi/diubah di kolom kuning.</p></div>
   <div class="card" style="margin-top:14px"><h3>Rekap tahunan — Ach SO vs Target <select onchange="S.yr=this.value;draw()" style="margin-left:10px">${(yrs.length?yrs:[ym]).map(y=>`<option ${y===ym?'selected':''}>${y}</option>`).join('')}</select></h3><div class="sc"><table><tr><th>ARM</th>${months.map((x,i)=>`<th class="n">${BL[i]}</th>`).join('')}<th class="n">YTD Ach</th></tr>
   ${[...new Set(months.flatMap(armsOf))].map(a=>{let A=0,T=0;const c=months.map(x=>{const rr=(DB.data[x]?.rows||[]).filter(r=>r.a===a&&smOk(r)),s=sum(rr.map(r=>r.t)),t=(DB.kpi[x]||{})[a]?.so||0;if(rr.length){A+=s;T+=t}return rr.length?`<td class="n">${t?pc(s/t):fmt(s)}</td>`:'<td class="n">-</td>'}).join('');return`<tr><td>${a}</td>${c}<td class="n"><b>${T?pc(A/T):'-'}</b></td></tr>`}).join('')}</table></div><p class="hint">Sel menampilkan Ach% bila target sudah diisi, jika belum menampilkan total SO.</p></div>`;
-  return[html];
+  const mC=modelsOf(S.ym).find(m=>/\bC01\b/i.test(m)),c01=r=>mC?(r.md||{})[mC]||0:0,ec=v=>v>=.8?'var(--grn)':v>=.7?'var(--or)':'var(--red)';
+  const C1=arms.map(a=>{const q=full(a),n=q.length,t=(kp[a]||{}).c01||0,ac=sum(q.map(c01));return{a,q,n,t,ac,rg:q[0]?.rg||'-',p:t?ac/t:0,e:t&&tg?ac/t/tg:0,ps:n?t/n:0}}).sort((x,y)=>y.p-x.p);
+  const sa=S.c1a||'',PL=C1.filter(x=>!sa||x.a===sa).flatMap(x=>x.q.map(r=>({r,a:x.a,ps:x.ps,ac:c01(r)}))).sort((x,y)=>y.ac-x.ac);
+  const tT=sum(C1.map(x=>x.t)),tA=sum(C1.map(x=>x.ac));
+  const C01=!mC?'<div class="card" style="margin-top:14px">Kolom tipe <b>realme C01</b> tidak ditemukan. Upload ulang file Excel bulan ini.</div>':`<div class="card" style="margin-top:14px"><h3>ACV C01 ARM <button class="btn dk" style="margin-left:10px" onclick="saveKpi()">Simpan target</button></h3>
+  <div class="sc"><table><tr><th>No</th><th>Area</th><th>ARM</th><th class="n">Target C01</th><th class="n">SA</th><th class="n">Target / SA</th><th class="n">ACV</th><th class="n">%</th><th class="n">Est ACV</th><th class="n">Time gone</th></tr>
+  ${C1.map((x,i)=>`<tr><td>${i+1}</td><td>${x.rg}</td><td><b>${x.a}</b></td><td class="n">${inp(x.a,'c01',x.t)}</td><td class="n">${x.n}</td><td class="n">${x.ps?x.ps.toFixed(1):'-'}</td><td class="n"><b>${x.ac}</b></td><td class="n" style="color:${cc(x.p,tg)};font-weight:700">${pc(x.p)}</td><td class="n" style="font-weight:800;color:${ec(x.e)}">${pc(x.e)}</td><td class="n">${pc(tg)}</td></tr>`).join('')}
+  <tr style="border-top:2px solid var(--y)"><td></td><td></td><td><b style="color:var(--y)">TOTAL</b></td><td class="n"><b>${fmt(tT)}</b></td><td class="n"><b>${sum(C1.map(x=>x.n))}</b></td><td></td><td class="n"><b>${fmt(tA)}</b></td><td class="n"><b>${tT?pc(tA/tT):'-'}</b></td><td class="n"><b>${tT&&tg?pc(tA/tT/tg):'-'}</b></td><td class="n">${pc(tg)}</td></tr></table></div>
+  <p class="hint">Target C01 ARM dibagi rata ke semua promotor di ARM tersebut (Target / SA). Est ACV = % ÷ Time gone.</p></div>
+  <div class="card" style="margin-top:14px"><h3>C01 per promotor <select style="margin-left:10px" onchange="S.c1a=this.value;draw()"><option value="">Semua ARM</option>${arms.map(a=>`<option ${a===sa?'selected':''}>${a}</option>`).join('')}</select></h3>
+  <div class="sc"><table><tr><th>Promotor</th><th>ARM</th><th class="n">Target / SA</th><th class="n">ACV C01</th><th class="n">% target</th></tr>${PL.map(x=>`<tr><td class="sa" onclick="saPop('${x.r.c}')">${x.r.n}</td><td>${x.a}</td><td class="n">${x.ps?x.ps.toFixed(1):'-'}</td><td class="n"><b>${x.ac}</b></td><td class="n" style="color:${cc(x.ps?x.ac/x.ps:0,tg)};font-weight:700">${x.ps?pc(x.ac/x.ps):'-'}</td></tr>`).join('')}</table></div></div>`;
+  return[html+C01];
 };
 window.saveKpi=()=>{const o={};document.querySelectorAll('input[data-a]').forEach(i=>{if(i.value!==''){(o[i.dataset.a]=o[i.dataset.a]||{})[i.dataset.f]=+i.value}});save('kpi',S.ym,o).then(()=>draw())};
 window.copyKpi=()=>{const m=mons(),i=m.indexOf(S.ym),p=Object.keys(DB.kpi).sort().filter(x=>x<S.ym).pop();if(!p)return toast('Belum ada target bulan lalu');save('kpi',S.ym,JSON.parse(JSON.stringify(DB.kpi[p]))).then(()=>draw())};
@@ -274,14 +289,16 @@ window.parseFile=async f=>{
   const h=a[1].map(x=>String(x).replace(/\s+/g,' ').trim());
   const ix=n=>h.indexOf(n),i1=ix('ARM'),i2=h.indexOf('ARM',i1+1),d0=ix('1');
   const iso=v=>typeof v==='number'?new Date(Math.round((v-25569)*864e5)).toISOString().slice(0,10):String(v).slice(0,10);
+  const tI=h.findIndex((v,i)=>i>=d0+31&&v==='TOTAL'),eI=h.indexOf('EOL',tI),MD=[];
+  if(tI>=0&&eI>tI)for(let c=tI+1;c<=eI;c++)if(h[c])MD.push({i:c,n:h[c]});
   const rows=[];
   for(let k=2;k<a.length;k++){const r=a[k];if(!r[ix('SALES ADVISOR NAME')])continue;
-    const x=Array.from({length:31},(_,i)=>+r[d0+i]||0),area=String(r[i2]||'');
-    rows.push({c:r[ix('PERSONEL CODE')],n:String(r[ix('SALES ADVISOR NAME')]).trim(),ch:/^MC/i.test(area)||/MODERN/i.test(r[ix('STORE TYPE')])?'MC':'TRADI',a:String(r[i1]).trim(),ar:area,rg:r[ix('REGIONAL')],sm:ix('PERSONEL TYPE')>=0?/store\s*manager|^\s*SM\s*$/i.test(String(r[ix('PERSONEL TYPE')])):r.slice(0,d0).some(v=>/store\s*manager|^\s*SM\s*$/i.test(String(v))),j:iso(r[ix('JOIN DATE')]),m:parseInt(r[ix('WORK PERIODE')])||0,x,t:sum(x)})}
+    const x=Array.from({length:31},(_,i)=>+r[d0+i]||0),area=String(r[i2]||''),md={};MD.forEach(m=>{const v=+r[m.i]||0;if(v)md[m.n]=v});
+    rows.push({c:r[ix('PERSONEL CODE')],n:String(r[ix('SALES ADVISOR NAME')]).trim(),ch:/^MC/i.test(area)||/MODERN/i.test(r[ix('STORE TYPE')])?'MC':'TRADI',a:String(r[i1]).trim(),ar:area,rg:r[ix('REGIONAL')],sm:ix('PERSONEL TYPE')>=0?/store\s*manager|^\s*SM\s*$/i.test(String(r[ix('PERSONEL TYPE')])):r.slice(0,d0).some(v=>/store\s*manager|^\s*SM\s*$/i.test(String(v))),j:iso(r[ix('JOIN DATE')]),m:parseInt(r[ix('WORK PERIODE')])||0,x,md,t:sum(x)})}
   const rs=[];const as=wb.Sheets['RAW AKUN SISTEM'];
   if(as)XLSX.utils.sheet_to_json(as,{defval:''}).forEach(r=>{const d=r['Resignation Date'];if(d)rs.push({c:r['Personnel Code'],n:r['Personnel Name'],d:iso(d)})});
   PEND={rows,rs};
-  $('#pend').innerHTML=`${rows.length} SA terbaca dari sheet SA REGULAR.<div class="bar" style="margin-top:10px"><label>Simpan sebagai bulan<input type="month" id="upm" value="${ym}"></label><button class="btn dk" onclick="commitUp()">Simpan ke server</button></div>`;
+  $('#pend').innerHTML=`${rows.length} SA terbaca dari sheet SA REGULAR, ${MD.length} tipe HP terbaca.<div class="bar" style="margin-top:10px"><label>Simpan sebagai bulan<input type="month" id="upm" value="${ym}"></label><button class="btn dk" onclick="commitUp()">Simpan ke server</button></div>`;
 };
 window.commitUp=async()=>{
   const ym=$('#upm').value;if(!ym||!PEND)return toast('Pilih bulan');
